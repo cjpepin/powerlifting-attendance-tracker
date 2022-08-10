@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='main.css') }}" />
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
+
+    <title>Document</title>
+
+</head>
+    <body onload="runSuite()">
+        
+        <div class="nav-wrapper">
+            <div class="nav-title">
+                Attendance Tracker
+            </div>
+            <div class="nav-buttons">
+                <!-- <button class="upload-form" >
+                    Upload Form
+                </button> -->
+                <!-- <button class="run-numbers" onclick="test()" >
+                    Run Numbers
+                </button> -->
+            </div>
+        </div>
+
+        <div class="table-wrapper" id="table-wrapper" >
+            
+        </div>
+
+        <div class="toggle-buttons-wrapper" id="button-toggle">
+
+        </div>
+
+        <div class="content-wrapper">
+            <div class="fill-form" id="filled-form">
+
+            </div>
+            <div class="going-to-practice" id="going-to-practice">
+
+            </div>
+            <div class="strikes" id="strikes">
+
+            </div>
+        </div>
+
+        <script src="{{ url_for('static', filename='main.js') }}"></script>
+        <script type="text/javascript">
+
+
+        function runSuite(){
+            let elt = {{data | tojson}}
+            deleteChildren()
+
+            setDateButtons(elt.dates)
+            displayTable(elt.df)
+
+            goingToPractice(elt.goingToPractice)
+            strikes(elt.strikes)
+            filledOutForm(elt.filledOutForm)
+        }
+
+        function deleteChildren(){
+            let parent = document.getElementById("going-to-practice");
+            while (parent.firstChild) {
+                parent.removeChild(parent.firstChild);
+            }
+            parent = document.getElementById("filled-form");
+            while (parent.firstChild) {
+                parent.removeChild(parent.firstChild);
+            }
+            parent = document.getElementById("strikes");
+            while (parent.firstChild) {
+                parent.removeChild(parent.firstChild);
+            }
+
+        }
+
+        function goingToPractice(arr){
+            let elt = document.getElementById("going-to-practice");
+
+            const titleElt = "These People Have Not Been Going To Practice Enough: <br />"
+            elt.innerHTML += (titleElt)
+
+            for(obj of arr){
+                if(obj === ""){
+                    elt.innerHTML += "<br />";
+                    return;
+                }
+                const text = `${obj[0]}: ${obj[1]}`
+                elt.innerHTML += "<br />" + text;
+            }
+        }
+
+        function filledOutForm(arr){
+            let elt = document.getElementById("filled-form");
+            
+            const titleElt = "These People Did Not Fill Out The Form: <br />"
+            elt.innerHTML += (titleElt)
+
+            for(text of arr){
+                if(text === ""){
+                elt.innerHTML += "<br />";
+                return;
+                }
+                elt.innerHTML += "<br />" + text;
+            }
+        }
+
+        function strikes(arr){
+            let elt = document.getElementById("strikes");
+
+            const titleElt = "These People With More Than One Strike: <br />"
+            elt.innerHTML += (titleElt)
+
+            for(text of arr){
+                if(text === ""){
+                elt.innerHTML += "<br />";
+                return;
+                }
+                elt.innerHTML += "<br />" + text;
+            }
+        }
+
+        function displayTable(text){
+            let elt = document.getElementById("table-wrapper");
+            deleteChildren(elt);
+            elt.innerHTML += text;
+            makeTableContentEditable();
+        }
+
+        function setDateButtons(arr){
+            let toggleButtonsElt = document.getElementById("button-toggle");
+            deleteChildren(toggleButtonsElt);
+            console.log(arr)
+            for(let date of arr){
+                let newButton = document.createElement("button");
+                newButton.innerHTML = date;
+                newButton.class = "toggle-button"
+                toggleButtonsElt.appendChild(newButton);
+            }
+        }
+
+        function makeTableContentEditable(){
+            let table = document.querySelector(".dataframe");
+            for(let row of table.rows){
+                for(let cell of row.cells){
+                    if(cell.innerHTML == "Yes" || cell.innerHTML == "No")
+                        cell.contentEditable = true;
+                }
+            }
+            table.addEventListener('change', () => {
+                //Update csv file via python
+            })
+        }
+
+        document.getElementById("button-toggle").addEventListener("click", (e)=> {toggleActiveButton(e)})
+        curActive = null;
+
+        function toggleActiveButton(e){
+            if(!(e.target instanceof HTMLButtonElement))
+                return;
+                
+            deleteChildren();
+            changeDatePython(e.target.innerHTML);
+            if(curActive)
+                curActive.style.backgroundColor = "white";
+            curActive = e.target
+            curActive.style.backgroundColor = "grey";
+
+        }
+
+        function changeDatePython(date){
+            $.ajax({
+                url: "/changeDate",
+                type:"POST",
+                contentType: "application/json",
+                data: JSON.stringify(date)
+            }).then(res => {
+                console.log(res)
+                deleteChildren()
+
+                goingToPractice(res.goingToPractice)
+                strikes(res.strikes)
+                filledOutForm(res.filledOutForm)
+            })
+        }
+        </script>
+    </body>
+</html>

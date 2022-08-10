@@ -1,19 +1,33 @@
-
-import eel
+from urllib import request
 import pandas as pd
 import numpy as np
-from datetime import date
+import jyserver.Flask as jsf
+import json
+from flask import Flask, request, redirect, url_for, render_template
 
-from flask import Flask
-
-eel.init("src")
+app = Flask(__name__)
 
 class Attendance_Checker:
-    def __init__(self, total, roster):
+
+
+    def __init__(self):
+        total_id = "1qDcaEYMJ0SRtzaFP59FpLEI_X5S6luGrpnr8ll3m7Ig"
+        total_name = "Total"
+
+        roster_id = "1J5zTgCu80vGjIlPr1C-rifmVCBNHiYg_CQOmJxTJa7o"
+        roster_name = "Roster"
+
+        total_url = "https://docs.google.com/spreadsheets/d/{}/gviz/tq?tqx=out:csv&sheet={}".format(total_id, total_name)
+        roster_url = "https://docs.google.com/spreadsheets/d/{}/gviz/tq?tqx=out:csv&sheet={}".format(roster_id, roster_name)
+
+        total = pd.read_csv(total_url)
+        roster = pd.read_csv(roster_url)
+
         self.total = total
         self.roster = roster
         self.dates = []
         self.df = self.format_df(total, roster)
+        self.stopDate = ""
 
     def format_df(self, df, roster):
         dfsToMerge = []
@@ -55,15 +69,11 @@ class Attendance_Checker:
     def merge_dfs(self, dfs):
         return pd.concat(dfs, axis=1)
 
-    def check_requirements(self, stopDate):
-        df = self.select_df_cols(self.df, stopDate)
+    def check_requirements(self):
+        df = self.select_df_cols(self.df)
         total = (len(df.columns) - 1) / 2
         required = np.round((total)/3, 2)
-        eel.goingToPractice(f"These People Have Not Been To {required} Practice(s)")
-        eel.goingToPractice("")
-        
-        eel.goingToPractice("Practices attended by...")
-        eel.goingToPractice("")
+        attendance_arr = []
         
         for i in range(len(df)):
             yes_count = 0
@@ -78,28 +88,25 @@ class Attendance_Checker:
                 if("Are you coming to Practice?" in col and df.at[i, col] == "Yes"):
                     yes_count += 1
             if yes_count < required:
-                eel.goingToPractice(f"{df.at[i, 'Name:']}: {yes_count}")
-        eel.goingToPractice("")
+                attendance_arr.append([df.at[i, 'Name:'], yes_count])
+        return attendance_arr
 
-    def check_this_form_filled(self, stopDate):
-        df = self.select_df_cols(self.df, stopDate)
-        if stopDate == "":
+    def check_this_form_filled(self):
+        df = self.select_df_cols(self.df)
+        not_filled_arr = []
+        if self.stopDate == "":
             col = df.columns[len(df.columns) - 2]
         else:
-            col = df.columns[self.dates.index(stopDate) * 2 + 2]
-        eel.filledOutForm("These People Did Not Fill Out The Form")
-        eel.filledOutForm("")
+            col = df.columns[self.dates.index(self.stopDate) * 2 + 2]
         for i in range(len(df)):
             if(df.at[i, col]) == "No":
-                eel.filledOutForm(f"{df.at[i, 'Name:']}")
-        eel.filledOutForm("")
+                not_filled_arr.append(df.at[i, 'Name:'])
+        return not_filled_arr
 
-    def strikes(self, stopDate):
-        df = self.select_df_cols(self.df, stopDate)
+    def strikes(self):
+        df = self.select_df_cols(self.df)
         max_strikes = 5
         strikesArr = []
-        eel.strikes(f"Strikes")
-        eel.strikes("")
         for i, row in df.iterrows():
             strikes = 0
             for j, col in enumerate(df.columns):
@@ -108,17 +115,20 @@ class Attendance_Checker:
             
             strikesArr.append([df.at[i, 'Name:'], strikes])
         strikesArr.sort(key=lambda x: x[1], reverse=True)
-        eel.strikes(strikesArr)
+        return strikesArr
         
 #     def save_new_df(self):
 #         self.df.to_csv('/Users/connorpepin/JupyterNotebooks/Powerlifting/total.csv', index=False)
 
     def display_table(self):
-        eel.displayTable(f"{self.df.to_html()}")
+        return self.df.to_html()
         
-    def select_df_cols(self, df, stopDate):
-        stopDateCol = df.columns.get_loc([col for col in df.columns if stopDate in col][0])
+    def select_df_cols(self, df):
+        stopDateCol = df.columns.get_loc([col for col in df.columns if self.stopDate in col][0])
         return df.iloc[:, :stopDateCol+2]
+
+    def set_stop_date(self, date):
+        self.stopDate = date
 
     def get_dates(self):
         df = self.df
@@ -132,16 +142,16 @@ class Attendance_Checker:
             if "Name:" not in curDate and "Coming" not in curDate and "Form" not in curDate:
                 self.dates.append(curDate.strip())
 
-        eel.setDateButtons(self.dates)
+        return self.dates
         
-    def run_suite(self, stopDate):
-        self.df = self.format_df(self.total, self.roster)
-        if(stopDate == ""):
-            self.display_table()
-            self.get_dates()
-        self.check_requirements(stopDate)
-        self.check_this_form_filled(stopDate)
-        self.strikes(stopDate)
+    # def run_suite(self, stopDate):
+    #     self.df = self.format_df(self.total, self.roster)
+    #     if(stopDate == ""):
+    #         self.display_table()
+    #         self.get_dates()
+    #     self.check_requirements(stopDate)
+    #     self.check_this_form_filled(stopDate)
+    #     self.strikes(stopDate)
 
 total_id = "1qDcaEYMJ0SRtzaFP59FpLEI_X5S6luGrpnr8ll3m7Ig"
 total_name = "Total"
@@ -154,63 +164,32 @@ roster_url = "https://docs.google.com/spreadsheets/d/{}/gviz/tq?tqx=out:csv&shee
 
 total = pd.read_csv(total_url)
 roster = pd.read_csv(roster_url)
-ac = Attendance_Checker(total, roster)
+ac = Attendance_Checker()
 
-@eel.expose
-def run_suite():
-    ac.run_suite("")
+@app.route("/")
+def home():
 
-@eel.expose
-def show_up_to(date):
-    ac.run_suite(date)
-    
+    dates = ac.get_dates()
+    stopDate = dates[len(dates)-1]
+    ac.stopDate = stopDate
+    data = {"df": ac.display_table(),
+            "goingToPractice": ac.check_requirements(), 
+            "filledOutForm": ac.check_this_form_filled(),
+            "strikes": ac.strikes(),
+            "dates": dates }
+    return render_template("index.html", data=data)
 
+@app.route("/changeDate", methods=['POST'])
+def changeDate():
+    output = request.get_json()
+    ac.stopDate = output
 
-eel.start("index.html")
-
-# this_practice = Undefined
-# ac = Undefined
-
-# def select_file():
-#     filename = filedialog.askopenfilename(initialdir="/Users/connorpepin/JupyterNotebooks/Powerlifting/", title="Select File",
-#                                             # filetypes=(("executables","*.csv", "all files", "*.*"))
-#                                         )
-
-#     success = tk.Label(frame, text=f"{filename} uploaded successfully", bg="white")
-#     success.pack()
-
-#     global this_practice
-#     this_practice = pd.read_csv(f"{filename}")
-#     global ac
-#     ac = Attendance_Checker(total, this_practice)
+    data = {"goingToPractice": ac.check_requirements(), 
+            "filledOutForm": ac.check_this_form_filled(),
+            "strikes": ac.strikes(),
+            }
+    return data
 
 
-# root = tk.Tk()
-
-# canvas = tk.Canvas(root, height=700, width=500,bg="#ffffff")
-# canvas.pack()
-
-# frame = tk.Frame(root, bg="grey")
-# frame.place(relwidth=0.7, relheight=0.7, relx=0.15, rely=0.15)
-
-# spacer = tk.Label(frame, text="", bg="white")
-
-# def run_functions():
-#     if(ac != Undefined):
-#         ac.run_suite()
-#     else:
-#         error = tk.Label(frame, text="It looks like you didn't pick a file to upload")
-#         error.pack()
-
-# def simple_test():
-#     success = tk.Label(frame, text=f" uploaded successfully", bg="white")
-#     success.pack()
-
-# openFile = tk.Button(root, text="Open Attendance Sheet", padx=10, pady=5, fg="grey", bg="black", command=select_file)
-# openFile.pack()
-
-# runChecks = tk.Button(root, text="Run Checks", padx=10, pady=5, fg="grey", bg="black", command=run_functions)
-# runChecks.pack()
-
-
-# root.mainloop()
+if __name__ == "__main__":
+    app.run()
