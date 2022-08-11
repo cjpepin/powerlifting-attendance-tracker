@@ -1,8 +1,7 @@
 from urllib import request
 import pandas as pd
 import numpy as np
-import jyserver.Flask as jsf
-import json
+
 from flask import Flask, request, redirect, url_for, render_template
 
 app = Flask(__name__)
